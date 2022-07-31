@@ -1,4 +1,5 @@
-import wikipediaapi as wiki_api
+import urllib.error
+
 import argparse
 
 from bs4 import BeautifulSoup
@@ -12,12 +13,17 @@ def number_of_refs(url):
     :return: integer representing the number of references.
     """
 
+    # Print url for
+    print("Inspecting : " + url)
+
     page_html = urlopen(url).read().decode('utf-8')
     soup = BeautifulSoup(page_html, 'html.parser')
 
-    refs = soup.find("ol", {"class": "references"}).findAll("li")
+    refs = soup.find("ol", {"class": "references"})
+    if not refs:
+        return 0
 
-    return len(refs)
+    return len(refs.findAll("li"))
 
 
 if __name__ == '__main__':
@@ -29,14 +35,36 @@ if __name__ == '__main__':
                                               "https://en.wikipedia.org/wiki/Artificial_intelligence).")
     args = parser.parse_args()
 
-    # Used for easily navigating and accessing Wikipedia
-    wiki = wiki_api.Wikipedia(
-        language='en',
-    )
+    # Retrieve and verify page
+    try:
+        page = urlopen(args.url).read().decode('utf-8')
 
-    # Retrieve and verify article
-    page = wiki.page(args.url.split("/wiki/", 1)[1])
-    if not page.exists():
+    # HTTP specific errors
+    except urllib.error.HTTPError:
         raise ValueError("Invalid Wikipedia article URL, please verify your input.")
 
-    print(number_of_refs(page.fullurl))
+    # Parse page
+    soup = BeautifulSoup(page, 'html.parser')
+
+    # Find all links within the article's content
+    urls = soup.find("div", {"id": "content"}).findAll("a", href=True)
+
+    # Limit links to other wikipedia pages
+    urls = ["https://en.wikipedia.org" + url['href'] for url in urls if url['href'].startswith("/wiki/")]
+
+    # Prepend the initial page
+    urls = [args.url] + urls
+
+    # Remove duplicates
+    urls = list(set(urls))
+
+    # Remove file links
+    urls = [url for url in urls if "/File:" not in url]
+
+    # Sort links
+    urls = sorted(urls)
+    print(len(urls))
+
+    ref_counts = [(url, number_of_refs(url)) for url in urls]
+    print(ref_counts)
+
