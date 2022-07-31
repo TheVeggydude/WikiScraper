@@ -1,6 +1,6 @@
 import urllib.error
-
 import argparse
+import multiprocessing
 
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
@@ -10,20 +10,17 @@ def number_of_refs(url):
     """
     Computes the number of list items in the <ol class="references"> HTML object for the given URL.
     :param url: URL of the page to be inspected.
-    :return: integer representing the number of references.
+    :return: Tuple containing URL string and an Integer representing the number of references.
     """
-
-    # Print url for
-    print("Inspecting : " + url)
 
     page_html = urlopen(url).read().decode('utf-8')
     soup = BeautifulSoup(page_html, 'html.parser')
 
     refs = soup.find("ol", {"class": "references"})
     if not refs:
-        return 0
+        return url, 0
 
-    return len(refs.findAll("li"))
+    return url, len(refs.findAll("li"))
 
 
 if __name__ == '__main__':
@@ -63,8 +60,16 @@ if __name__ == '__main__':
 
     # Sort links
     urls = sorted(urls)
-    print(len(urls))
+    print("Total number of pages found", len(urls))
 
-    ref_counts = [(url, number_of_refs(url)) for url in urls]
+    # Map list using parallel processing library.
+    pool = multiprocessing.Pool()
+
+    try:
+        ref_counts = pool.map(number_of_refs, urls)
+
+    finally:
+        # Close parallel poop when computation is done.
+        pool.close()
+
     print(ref_counts)
-
